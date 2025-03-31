@@ -1,0 +1,11 @@
+[package]
+name = "hamming-rust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+bitvec = { version = "1.0.1" }
+borsh = "1.5.7"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_plain = "1.0.2"
