@@ -1,131 +1,72 @@
-# hamming-rust 🦀
+# hamming-rust
 
-[![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/yourusername/hamming-rust)
+![rust](https://img.shields.io/badge/rust-2024-orange?logo=rust)
+![license](https://img.shields.io/badge/license-MIT-blue)
 
-A robust implementation of Hamming code error correction and a custom data link layer protocol (GUS Protocol) in Rust 🚀
+teaching rocks to fix themselves. a university assignment that i overengineered because i wanted to use rust.
 
-## Features
+> **want the full story on how i built this + an explanation on how hamming codes work?** 
+> check out my blog post: [blog.r3dlust.com/hamming-rust](https://blog.r3dlust.com/hamming-rust)
 
-- **Hamming Code Implementation**: Provides error detection and single-bit error correction
-- **Custom GUS Protocol**: Great Unused Standard Protocol for reliable data transmission
-- **Efficient BitVector**: Custom BitVec implementation for bit-level operations
-- **CLI Interface**: Easy-to-use command line interface for sending and receiving data
-- **Performance Benchmarks**: Includes criterion-based benchmarks for encoding/decoding
-- **Error Handling**: Comprehensive error handling with detailed logging
+## what is this?
 
-## Protocol Description
+this is a rust implementation of hamming code error correction, wrapped in a completely made-up data link layer frame format called the "GUS protocol" (Great Unused Standard).
 
-The GUS (Great Unused Standard) Protocol is structured as follows:
+it's a cli pipeline. you give it some data, it encodes it with redundant parity bits, maliciously flips a bit 50% of the time to simulate a noisy wire, and spits out the raw bytes. pipe that into the receiver, and it will read the frame, mathematically figure out exactly which bit flipped, fix it, and give you your original data back.
 
-```
-+----------------+--------+----------------+------------------+
-| Protocol Name  | Ver.   | Length Fields  |  Payload         |
-| (3 bytes)      | (1b)   | (16/32 bytes)  |  (Variable)      |
-+----------------+--------+----------------+------------------+
-     "GUS"         0x01    Data + Bits Len   Hamming-coded
-```
+it just works.
 
-### Frame Details
+## features
 
-- **Protocol Name**: Fixed 3-byte identifier "GUS"
-- **Version**: 1-byte version number (currently 0x01)
-- **Length Fields**: Two size_t values containing:
-  - Data length (in bytes)
-  - Bits length (total bits in payload)
-- **Payload**: Hamming-encoded data with error correction
+- **custom bitvector:** rust doesn't have a great way to handle individual bits natively, so i wrote my own `BitVec` implementation that packs bits into bytes. it was a nightmare of big-endian bit ordering and off-by-one index errors.
+- **hamming codes:** single error correction (sec). triangulates broken bits using overlapping parity groups based on powers of 2.
+- **gus protocol:** a 20-byte frame header that wraps the encoded payload just to satisfy the assignment requirements.
+- **split logging:** logs go to stderr, raw binary data goes to stdout. this means you can actually pipe the output between processes without the logs corrupting the binary payload.
 
-## Usage
+## running it
 
-### Building
+you'll need the rust toolchain (edition 2024).
 
 ```bash
 cargo build --release
 ```
 
-### Running
+the cli supports two modes (`sender` and `receiver`) and two data types (`binary` and `text`).
 
-As a sender:
-
+**send and receive some binary:**
 ```bash
-./hamming_rust -t binary sender -d "01101001"
+./target/release/hamming_rust -t binary sender -d "01101001" | ./target/release/hamming_rust -t binary receiver
 ```
 
-As a receiver:
-
+**send and receive some text:**
 ```bash
-./hamming_rust -t binary receiver
+./target/release/hamming_rust -t text sender -d "hello world" | ./target/release/hamming_rust -t text receiver
 ```
 
-You can pipe data between sender and receiver:
+if you watch the logs, about 50% of the time you'll see the receiver log `[WRN] [RECEIVER] Corrected an error at position X`. this is the hamming code doing its job.
 
-```bash
-./hamming_rust -t binary sender -d "01101001" | ./hamming_rust -t binary receiver
-```
+## the frame format
 
-### Data Types
+because this was a computer networks assignment, the data couldn't just be raw bits. it had to be framed.
 
-The program supports two data types:
+| Offset | Size | Field |
+|--------|------|-------|
+| 0 | 3 bytes | Magic string: "GUS" |
+| 3 | 1 byte | Version: `0x01` |
+| 4 | 8 bytes* | Byte length of payload |
+| 12 | 8 bytes* | Exact bit length of payload |
+| 20 | Variable | Hamming-encoded payload bytes |
 
-- `binary`: Direct binary string input/output
-- `text`: ASCII text that gets converted to binary
+*\* Note: The length fields use `usize`, so the frame size is architecture-dependent. A frame built on a 64-bit machine cannot be decoded on a 32-bit machine. I could fix this by using `u64`, but it's a university assignment and it already works.*
 
-## Error Correction
+## benchmarks
 
-The implementation uses Hamming code for error detection and correction:
-
-1. Sender:
-   - Encodes the input data using Hamming code
-   - Has a 50% chance of introducing a single-bit error (for testing)
-   - Wraps the encoded data in the GUS protocol frame
-
-2. Receiver:
-   - Extracts the payload from the GUS protocol frame
-   - Detects and corrects any single-bit errors
-   - Reports if error correction was performed
-   - Outputs the original data
-
-## Project Structure
-
-```
-hamming-rust/
-├── src/
-│   ├── cli/            # Command-line interface
-│   ├── encoding/       # Hamming & BitVector implementations
-│   ├── proto/         # GUS Protocol implementation
-│   └── utils/         # Utility functions
-├── benches/           # Performance benchmarks
-└── tests/            # Unit and integration tests
-```
-
-## Performance
-
-The project includes comprehensive benchmarks for:
-
-- Hamming code encoding/decoding
-- Various data sizes (128, 1024, 8192, 65536 bits)
-- Error correction scenarios
-
-Run benchmarks with:
+i also threw in some criterion benchmarks for encoding and decoding payloads up to 64kb, because why not.
 
 ```bash
 cargo bench
 ```
 
-## Logging
+## license
 
-The implementation includes a sophisticated logging system with:
-
-- Multiple log levels (ERROR, WARN, INFO, DEBUG, TRACE)
-- Colored output for better visibility
-- Timestamp and context information
-- Split logging (errors to stderr, other logs to stdout)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+mit. do whatever you want with it.
